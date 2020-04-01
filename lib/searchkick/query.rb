@@ -358,7 +358,6 @@ module Searchkick
                     fields: fields_query,
                     query: term,
                     type: "cross_fields",
-                    analyzer: "searchkick_search2",
                     operator: 'and'
                   }
                 }
