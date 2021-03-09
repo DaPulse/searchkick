@@ -376,11 +376,24 @@ module Searchkick
 
             end
 
-            payload = {
-              dis_max: {
-                queries: queries
+            if tenancy_term.present?
+              payload = {
+                bool: {
+                  must: {
+                    dis_max: {
+                      queries: queries
+                    }
+                  },
+                  filter: tenancy_term
+                }
               }
-            }
+            else
+              payload = {
+                dis_max: {
+                  queries: queries
+                }
+              }
+            end
           end
 
           if conversions_fields.present? && options[:conversions] != false
