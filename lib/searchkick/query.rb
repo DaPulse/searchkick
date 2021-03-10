@@ -237,7 +237,7 @@ module Searchkick
       tenancy_term = nil
       account_id = options[:account_id]
       if account_id.present?
-        tenancy_term = { match: { account_id: account_id }}
+        tenancy_term = { term: { account_id: { value: account_id }}}
       end
 
       @json = options[:json] || options[:body]
