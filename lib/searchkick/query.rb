@@ -87,7 +87,7 @@ module Searchkick
 
     def choose_client
       client = @options[:new_cluster] ? Searchkick.new_client : nil
-      client = @options[:cluster_v3] ? Searchkick.client_v3 : nil
+      client = @options[:client_v3] ? Searchkick.client_v3 : nil
       
       if client == nil && use_new_cluster?
         client = Searchkick.new_client
