@@ -32,7 +32,7 @@ module Searchkick
 
   class << self
     attr_accessor :search_method_name, :wordnet_path, :timeout, :models, :client_options
-    attr_writer :client, :new_client, :env, :search_timeout
+    attr_writer :client, :new_client, :client_v3, :env, :search_timeout
     attr_reader :aws_credentials
   end
   self.search_method_name = :search
