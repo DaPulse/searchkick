@@ -63,7 +63,7 @@ module Searchkick
     client_url = ENV["ELASTICSEARCH_V3_URL"]
     return nil if client_url.blank?
 
-    @new_client ||=
+    @client_v3 ||=
       Elasticsearch::Client.new({
         url: client_url,
         transport_options: {request: {timeout: timeout}, headers: {content_type: "application/json"}}
