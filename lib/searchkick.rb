@@ -59,6 +59,24 @@ module Searchkick
     end
   end
 
+  def self.client_v3
+    client_url = ENV["ELASTICSEARCH_V3_URL"]
+    return nil if client_url.blank?
+
+    @new_client ||=
+      Elasticsearch::Client.new({
+        url: client_url,
+        transport_options: {request: {timeout: timeout}, headers: {content_type: "application/json"}}
+      }.deep_merge(client_options)) do |f|
+        f.use Searchkick::Middleware
+        f.request :aws_signers_v4, {
+          credentials: Aws::Credentials.new(aws_credentials[:access_key_id], aws_credentials[:secret_access_key]),
+          service_name: "es",
+          region: aws_credentials[:region] || "us-east-1"
+        } if aws_credentials
+      end
+  end
+
   def self.new_client
     new_client_url = ENV["ELASTICSEARCH_WRITE_ONLY_URL"] || ENV["ELASTICSEARCH_NEW_CLIENT_URL"]
     return nil if new_client_url.blank?
@@ -92,6 +110,9 @@ module Searchkick
       when 2
         raise 'new_client not defined' if new_client.nil?
         return [new_client]
+      when 3
+        raise 'client_v3 not defined' if client_v3.nil?
+        return [client_v3]
       else
         raise 'Invalid value for Thread.current.search_kick_client_id can be 1 or 2. nil as legacy support'
       end
