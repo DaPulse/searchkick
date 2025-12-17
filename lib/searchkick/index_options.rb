@@ -171,6 +171,13 @@ module Searchkick
           settings[:index] ||= {}
           settings[:index][:max_ngram_diff] = 49
           settings[:index][:max_shingle_diff] = 4
+
+          # The 'standard' token filter was removed in ES 7+/OpenSearch
+          settings[:analysis][:analyzer].each do |_, analyzer_settings|
+            if analyzer_settings[:filter].is_a?(Array)
+              analyzer_settings[:filter].reject! { |f| f == "standard" }
+            end
+          end
         end
 
         if options[:similarity]
