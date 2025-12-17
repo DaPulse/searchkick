@@ -147,13 +147,14 @@ module Searchkick
   end
 
   # Returns true if running against OpenSearch or Elasticsearch 7+
-  # These versions don't support the _type parameter
+  # These versions don't support the _type parameter or old query syntax
   def self.opensearch_mode?
+    # Always check ENV first (no caching to allow runtime changes)
+    return true if ENV['OPENSEARCH_MODE'] == 'true'
     return @opensearch_mode if defined?(@opensearch_mode)
-    @opensearch_mode = ENV['OPENSEARCH_MODE'] == 'true' || !server_below?("7.0.0")
+    @opensearch_mode = !server_below?("7.0.0")
   rescue
-    # If we can't determine version, check env var
-    ENV['OPENSEARCH_MODE'] == 'true'
+    false
   end
 
   def self.search(term = nil, options = {}, &block)
