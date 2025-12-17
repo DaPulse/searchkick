@@ -782,11 +782,20 @@ module Searchkick
         facet_options.deep_merge!(where: options.fetch(:where, {}).reject { |k| k == field }) if options[:smart_facets] == true
         facet_filters = where_filters(facet_options[:where])
         if facet_filters.any?
-          payload[:facets][field][:facet_filter] = {
-            and: {
-              filters: facet_filters
+          # OpenSearch/ES7+ don't support 'and' filter syntax, use bool filter instead
+          if Searchkick.opensearch_mode?
+            payload[:facets][field][:facet_filter] = {
+              bool: {
+                filter: facet_filters
+              }
             }
-          }
+          else
+            payload[:facets][field][:facet_filter] = {
+              and: {
+                filters: facet_filters
+              }
+            }
+          end
         end
       end
 
@@ -1040,21 +1049,25 @@ module Searchkick
     end
 
     def below12?
+      return false if Searchkick.opensearch_mode?
       new_client = options[:new_cluster] == true || use_new_cluster?
       Searchkick.server_below?("1.2.0", new_client)
     end
 
     def below14?
+      return false if Searchkick.opensearch_mode?
       new_client = options[:new_cluster] == true || use_new_cluster?
       Searchkick.server_below?("1.4.0", new_client)
     end
 
     def below20?
+      return false if Searchkick.opensearch_mode?
       new_client = options[:new_cluster] == true || use_new_cluster?
       Searchkick.server_below?("2.0.0", new_client)
     end
 
     def below50?
+      return false if Searchkick.opensearch_mode?
       new_client = options[:new_cluster] == true || use_new_cluster?
       Searchkick.server_below?("5.0.0-alpha1", new_client)
     end
