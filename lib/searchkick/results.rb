@@ -131,7 +131,9 @@ module Searchkick
     end
 
     def total_count
-      response["hits"]["total"]
+      total = response["hits"]["total"]
+      # ES 7+/OpenSearch return total as {"value": N, "relation": "eq|gte"}
+      total.is_a?(Hash) ? total["value"] : total
     end
     alias_method :total_entries, :total_count
 

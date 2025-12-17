@@ -75,7 +75,9 @@ module Searchkick
       @execute ||= begin
         begin
           response = execute_search
-          if @misspellings_below && response["hits"]["total"] < @misspellings_below
+          total = response["hits"]["total"]
+          total = total.is_a?(Hash) ? total["value"] : total
+          if @misspellings_below && total < @misspellings_below
             prepare
             response = execute_search
           end

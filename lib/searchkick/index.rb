@@ -199,7 +199,9 @@ module Searchkick
           }
         )
 
-      response["hits"]["total"]
+      total = response["hits"]["total"]
+      # ES 7+/OpenSearch return total as {"value": N, "relation": "eq|gte"}
+      total.is_a?(Hash) ? total["value"] : total
     end
 
     # https://gist.github.com/jarosan/3124884
