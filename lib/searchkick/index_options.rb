@@ -391,7 +391,21 @@ module Searchkick
             ]
           }
           mappings[:_routing] = routing if routing.present?
-          mappings = mappings.deep_merge(options[:mappings] || {})
+
+          # Sanitize custom mappings for OpenSearch - extract properties from type-level mappings
+          custom_mappings = options[:mappings] || {}
+          custom_mappings.each do |key, value|
+            if value.is_a?(Hash) && value[:properties]
+              # This is a type-level mapping (e.g., {post: {properties: ...}})
+              # Merge its properties into the main properties and remove include_in_all
+              sanitized_props = deep_remove_keys(value[:properties], [:include_in_all])
+              mappings[:properties] = (mappings[:properties] || {}).deep_merge(sanitized_props)
+            elsif [:properties, :dynamic_templates, :_routing].include?(key)
+              # Standard mapping keys - merge directly
+              mappings[key] = mappings[key].is_a?(Hash) ? mappings[key].deep_merge(value) : value
+            end
+            # Skip other type-level keys like _default_, _all, etc.
+          end
         else
           # ES 5.x/6.x: use _default_ mapping type with _all field
           mappings = {
@@ -418,6 +432,23 @@ module Searchkick
         settings: settings,
         mappings: mappings
       }
+    end
+
+    private
+
+    # Recursively remove specified keys from a hash
+    def deep_remove_keys(hash, keys_to_remove)
+      return hash unless hash.is_a?(Hash)
+
+      hash.each_with_object({}) do |(key, value), result|
+        next if keys_to_remove.include?(key)
+
+        result[key] = if value.is_a?(Hash)
+          deep_remove_keys(value, keys_to_remove)
+        else
+          value
+        end
+      end
     end
   end
 end
