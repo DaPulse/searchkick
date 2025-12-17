@@ -165,6 +165,14 @@ module Searchkick
           settings[:number_of_replicas] = 0
         end
 
+        # OpenSearch/ES7+ have stricter defaults for ngram tokenizer diff
+        # Default max_ngram_diff is 1, but we use min_gram:1 max_gram:50 (diff=49)
+        if Searchkick.opensearch_mode?
+          settings[:index] ||= {}
+          settings[:index][:max_ngram_diff] = 49
+          settings[:index][:max_shingle_diff] = 4
+        end
+
         if options[:similarity]
           settings[:similarity] = {default: {type: options[:similarity]}}
         end
