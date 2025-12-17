@@ -974,7 +974,12 @@ module Searchkick
             {bool: {should: [term_filters(field, nil), term_filters(field, value.compact)]}}
           end
         else
-          {in: {field => value}}
+          # 'in' query was replaced by 'terms' in ES 5+
+          if below50?
+            {in: {field => value}}
+          else
+            {terms: {field => value}}
+          end
         end
       elsif value.nil?
         if below50?
