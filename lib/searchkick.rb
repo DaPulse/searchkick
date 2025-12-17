@@ -146,6 +146,16 @@ module Searchkick
     Gem::Version.new(server_version(is_new_client).sub("-", ".")) < Gem::Version.new(version.sub("-", "."))
   end
 
+  # Returns true if running against OpenSearch or Elasticsearch 7+
+  # These versions don't support the _type parameter
+  def self.opensearch_mode?
+    return @opensearch_mode if defined?(@opensearch_mode)
+    @opensearch_mode = ENV['OPENSEARCH_MODE'] == 'true' || !server_below?("7.0.0")
+  rescue
+    # If we can't determine version, check env var
+    ENV['OPENSEARCH_MODE'] == 'true'
+  end
+
   def self.search(term = nil, options = {}, &block)
     query = Searchkick::Query.new(nil, term, options)
     block.call(query.body) if block

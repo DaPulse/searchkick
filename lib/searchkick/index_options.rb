@@ -126,7 +126,7 @@ module Searchkick
                 max_shingle_size: 5
               },
               searchkick_edge_ngram: {
-                type: "edgeNGram",
+                type: "edge_ngram",
                 min_gram: 1,
                 max_gram: 50
               },
@@ -152,7 +152,7 @@ module Searchkick
             },
             tokenizer: {
               searchkick_autocomplete_ngram: {
-                type: "edgeNGram",
+                type: "edge_ngram",
                 min_gram: 1,
                 max_gram: 50
               }

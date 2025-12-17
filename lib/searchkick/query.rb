@@ -64,7 +64,8 @@ module Searchkick
         index: index,
         body: body
       }
-      params[:type] = @type if @type
+      # Only include type for ES 6.x and below (OpenSearch and ES 7+ don't support it)
+      params[:type] = @type if @type && !Searchkick.opensearch_mode?
       params[:routing] = @routing if @routing
       params.merge!(options[:request_params]) if options[:request_params]
       params

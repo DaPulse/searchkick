@@ -88,19 +88,22 @@ module Searchkick
     def record_data(r)
       data = {
         _index: name,
-        _id: search_id(r),
-        _type: document_type(r)
+        _id: search_id(r)
       }
+      # Only include _type for ES 6.x and below (OpenSearch and ES 7+ don't support it)
+      data[:_type] = document_type(r) unless Searchkick.opensearch_mode?
       data[:_routing] = r.search_routing if r.respond_to?(:search_routing)
       data
     end
 
     def retrieve(record)
-      client.get(
+      params = {
         index: name,
-        type: document_type(record),
         id: search_id(record)
-      )["_source"]
+      }
+      # Only include type for ES 6.x and below
+      params[:type] = document_type(record) unless Searchkick.opensearch_mode?
+      client.get(params)["_source"]
     end
 
     def reindex_record(record)

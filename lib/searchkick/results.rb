@@ -26,13 +26,20 @@ module Searchkick
           # results can have different types
           results = {}
 
-          hits.group_by { |hit, _| hit["_type"] }.each do |type, grouped_hits|
-            results[type] = results_query(type.camelize.constantize, grouped_hits).to_a.index_by { |r| r.id.to_s }
+          # OpenSearch/ES7+ don't return _type, fallback to klass
+          hits.group_by { |hit, _| hit["_type"] || klass.model_name.to_s.underscore }.each do |type, grouped_hits|
+            type_klass = begin
+              type.camelize.constantize
+            rescue NameError
+              klass # fallback to the search klass
+            end
+            results[type] = results_query(type_klass, grouped_hits).to_a.index_by { |r| r.id.to_s }
           end
 
           # sort
           hits.map do |hit|
-            results[hit["_type"]][hit["_id"].to_s]
+            type_key = hit["_type"] || klass.model_name.to_s.underscore
+            results[type_key][hit["_id"].to_s]
           end.compact
         else
           hits.map do |hit|
