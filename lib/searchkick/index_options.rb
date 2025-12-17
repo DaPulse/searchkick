@@ -258,7 +258,7 @@ module Searchkick
           fields = {}
 
           if mapping_options[:only_analyzed].include?(field) || (options.key?(:filterable) && !mapping_options[:filterable].include?(field))
-            fields[field] = {type: default_type, index: below50 ? "no" : false}
+            fields[field] = {type: default_type, index: Searchkick.opensearch_mode? ? false : "no"}
           else
             fields[field] = keyword_mapping
           end
@@ -266,10 +266,10 @@ module Searchkick
           if !options[:searchable] || mapping_options[:searchable].include?(field)
             if word
               # OpenSearch/ES7+ don't need index: "analyzed" - it's the default for text fields
-              if below50
-                fields["analyzed"] = {type: default_type, index: "analyzed", analyzer: default_analyzer}
-              else
+              if Searchkick.opensearch_mode?
                 fields["analyzed"] = {type: default_type, analyzer: default_analyzer}
+              else
+                fields["analyzed"] = {type: default_type, index: "analyzed", analyzer: default_analyzer}
               end
 
               if mapping_options[:highlight].include?(field)
@@ -279,10 +279,10 @@ module Searchkick
 
             mapping_options.except(:highlight, :searchable, :filterable, :only_analyzed, :word).each do |type, f|
               if options[:match] == type || f.include?(field)
-                if below50
-                  fields[type] = {type: default_type, index: "analyzed", analyzer: "searchkick_#{type}_index"}
-                else
+                if Searchkick.opensearch_mode?
                   fields[type] = {type: default_type, analyzer: "searchkick_#{type}_index"}
+                else
+                  fields[type] = {type: default_type, index: "analyzed", analyzer: "searchkick_#{type}_index"}
                 end
               end
             end
@@ -313,7 +313,7 @@ module Searchkick
         (options[:unsearchable] || []).map(&:to_s).each do |field|
           mapping[field] = {
             type: default_type,
-            index: below50 ? "no" : false
+            index: Searchkick.opensearch_mode? ? false : "no"
           }
         end
 
@@ -330,12 +330,13 @@ module Searchkick
           # http://www.elasticsearch.org/guide/reference/mapping/multi-field-type/
           # however, we can include the not_analyzed field in _all
           # and the _all index analyzer will take care of it
-          "{name}" => keyword_mapping.merge(below50 ? {include_in_all: !options[:searchable]} : {})
+          # OpenSearch/ES7+ removed include_in_all
+          "{name}" => keyword_mapping.merge(Searchkick.opensearch_mode? ? {} : {include_in_all: !options[:searchable]})
         }
 
         if options.key?(:filterable)
           # OpenSearch/ES7+ use index: false instead of index: "no"
-          dynamic_fields["{name}"] = {type: default_type, index: below50 ? "no" : false}
+          dynamic_fields["{name}"] = {type: default_type, index: Searchkick.opensearch_mode? ? false : "no"}
         end
 
         dynamic_fields["{name}"][:ignore_above] = (options[:ignore_above] || 256) unless below22
@@ -343,18 +344,18 @@ module Searchkick
         unless options[:searchable]
           if options[:match] && options[:match] != :word
             # OpenSearch/ES7+ don't need index: "analyzed" - it's the default for text fields
-            if below50
-              dynamic_fields[options[:match]] = {type: default_type, index: "analyzed", analyzer: "searchkick_#{options[:match]}_index"}
-            else
+            if Searchkick.opensearch_mode?
               dynamic_fields[options[:match]] = {type: default_type, analyzer: "searchkick_#{options[:match]}_index"}
+            else
+              dynamic_fields[options[:match]] = {type: default_type, index: "analyzed", analyzer: "searchkick_#{options[:match]}_index"}
             end
           end
 
           if word
-            if below50
-              dynamic_fields["analyzed"] = {type: default_type, index: "analyzed"}
-            else
+            if Searchkick.opensearch_mode?
               dynamic_fields["analyzed"] = {type: default_type}
+            else
+              dynamic_fields["analyzed"] = {type: default_type, index: "analyzed"}
             end
           end
         end
@@ -374,25 +375,8 @@ module Searchkick
         all_enabled = true
 
         # OpenSearch/ES7+ don't support _default_ mapping type or _all field
-        if below50
-          mappings = {
-            _default_: {
-              _all: all_enabled ? {type: default_type, index: "analyzed", analyzer: default_analyzer} : {enabled: false},
-              properties: mapping,
-              _routing: routing,
-              # https://gist.github.com/kimchy/2898285
-              dynamic_templates: [
-                {
-                  string_template: {
-                    match: "*",
-                    match_mapping_type: "string",
-                    mapping: multi_field
-                  }
-                }
-              ]
-            }
-          }.deep_merge(options[:mappings] || {})
-        else
+        # ES 5.x/6.x still support them, so only remove for opensearch_mode
+        if Searchkick.opensearch_mode?
           # ES 7+/OpenSearch: single mapping type, no _all field
           mappings = {
             properties: mapping,
@@ -408,6 +392,25 @@ module Searchkick
           }
           mappings[:_routing] = routing if routing.present?
           mappings = mappings.deep_merge(options[:mappings] || {})
+        else
+          # ES 5.x/6.x: use _default_ mapping type with _all field
+          mappings = {
+            _default_: {
+              _all: all_enabled ? {type: default_type, index: below50 ? "analyzed" : true, analyzer: default_analyzer} : {enabled: false},
+              properties: mapping,
+              _routing: routing,
+              # https://gist.github.com/kimchy/2898285
+              dynamic_templates: [
+                {
+                  string_template: {
+                    match: "*",
+                    match_mapping_type: "string",
+                    mapping: multi_field
+                  }
+                }
+              ]
+            }
+          }.deep_merge(options[:mappings] || {})
         end
       end
 
