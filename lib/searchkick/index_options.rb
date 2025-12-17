@@ -9,8 +9,8 @@ module Searchkick
         settings = options[:settings] || {}
         mappings = options[:mappings]
       else
-        below22 = Searchkick.server_below?("2.2.0")
-        below50 = Searchkick.server_below?("5.0.0-alpha1")
+        below22 = !Searchkick.opensearch_mode? && Searchkick.server_below?("2.2.0")
+        below50 = !Searchkick.opensearch_mode? && Searchkick.server_below?("5.0.0-alpha1")
         default_type = below50 ? "string" : "text"
         default_analyzer = below50 ? :default_index : :default
         keyword_mapping =
