@@ -290,6 +290,9 @@ module Searchkick
     end
 
     def klass_document_type(klass)
+      # ES 6.x only allows one type per index - use _doc for all documents
+      return "_doc" unless Searchkick.server_below?("6.0.0")
+
       if klass.respond_to?(:document_type)
         klass.document_type
       else
@@ -304,6 +307,9 @@ module Searchkick
     end
 
     def document_type(record)
+      # ES 6.x only allows one type per index - use _doc for all documents
+      return "_doc" unless Searchkick.server_below?("6.0.0")
+
       if record.respond_to?(:search_document_type)
         record.search_document_type
       else

@@ -27,7 +27,9 @@ module Searchkick
           results = {}
 
           hits.group_by { |hit, _| hit["_type"] }.each do |type, grouped_hits|
-            results[type] = results_query(type.camelize.constantize, grouped_hits).to_a.index_by { |r| r.id.to_s }
+            # ES 6.x uses _doc as the single type - use klass instead
+            model_class = (type == "_doc" || type.nil?) ? klass : type.camelize.constantize
+            results[type] = results_query(model_class, grouped_hits).to_a.index_by { |r| r.id.to_s }
           end
 
           # sort
