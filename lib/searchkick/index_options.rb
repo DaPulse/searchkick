@@ -5,13 +5,18 @@ module Searchkick
       language = options[:language]
       language = language.call if language.respond_to?(:call)
 
+      below60 = Searchkick.server_below?("6.0.0")
+
       if options[:mappings] && !options[:merge_mappings]
         settings = options[:settings] || {}
         mappings = options[:mappings]
+        # Remove include_in_all for ES 6.0+ (not allowed)
+        unless below60
+          mappings = remove_include_in_all(mappings)
+        end
       else
         below22 = Searchkick.server_below?("2.2.0")
         below50 = Searchkick.server_below?("5.0.0-alpha1")
-        below60 = Searchkick.server_below?("6.0.0")
         default_type = below50 ? "string" : "text"
         index_false = below60 ? "no" : false
         index_true = below60 ? "analyzed" : true
@@ -366,12 +371,34 @@ module Searchkick
         mappings = {
           _default_: default_mapping
         }.deep_merge(options[:mappings] || {})
+
+        # Remove include_in_all for ES 6.0+ (not allowed)
+        unless below60
+          mappings = remove_include_in_all(mappings)
+        end
       end
 
       {
         settings: settings,
         mappings: mappings
       }
+    end
+
+    private
+
+    # Recursively remove include_in_all from mappings (not allowed in ES 6.0+)
+    def remove_include_in_all(obj)
+      case obj
+      when Hash
+        obj.each_with_object({}) do |(k, v), result|
+          next if k == :include_in_all || k == "include_in_all"
+          result[k] = remove_include_in_all(v)
+        end
+      when Array
+        obj.map { |item| remove_include_in_all(item) }
+      else
+        obj
+      end
     end
   end
 end
