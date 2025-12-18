@@ -57,7 +57,8 @@ module Searchkick
         elsif searchkick_index
           searchkick_index.name
         else
-          "_all"
+          # _all index alias deprecated in ES 6.0+, use * instead
+          below60? ? "_all" : "*"
         end
 
       params = {
@@ -558,7 +559,8 @@ module Searchkick
           if options[:autocomplete]
             (searchkick_options[:autocomplete] || []).map { |f| "#{f}.autocomplete" }
           else
-            ["_all"]
+            # _all field is deprecated in ES 6.0+, use *.analyzed instead
+            below60? ? ["_all"] : ["*.analyzed"]
           end
         end
       [boost_fields, fields]
@@ -1056,6 +1058,11 @@ module Searchkick
     def below50?
       new_client = options[:new_cluster] == true || use_new_cluster?
       Searchkick.server_below?("5.0.0-alpha1", new_client)
+    end
+
+    def below60?
+      new_client = options[:new_cluster] == true || use_new_cluster?
+      Searchkick.server_below?("6.0.0", new_client)
     end
   end
 end

@@ -309,7 +309,8 @@ module Searchkick
           # http://www.elasticsearch.org/guide/reference/mapping/multi-field-type/
           # however, we can include the not_analyzed field in _all
           # and the _all index analyzer will take care of it
-          "{name}" => keyword_mapping.merge(include_in_all: !options[:searchable])
+          # include_in_all is not allowed in ES 6.0+
+          "{name}" => below60 ? keyword_mapping.merge(include_in_all: !options[:searchable]) : keyword_mapping.dup
         }
 
         if options.key?(:filterable)
@@ -342,22 +343,28 @@ module Searchkick
         # TODO make dynamic
         all_enabled = true
 
-        mappings = {
-          _default_: {
-            _all: all_enabled ? {type: default_type, index: index_true, analyzer: default_analyzer} : {enabled: false},
-            properties: mapping,
-            _routing: routing,
-            # https://gist.github.com/kimchy/2898285
-            dynamic_templates: [
-              {
-                string_template: {
-                  match: "*",
-                  match_mapping_type: "string",
-                  mapping: multi_field
-                }
+        default_mapping = {
+          properties: mapping,
+          _routing: routing,
+          # https://gist.github.com/kimchy/2898285
+          dynamic_templates: [
+            {
+              string_template: {
+                match: "*",
+                match_mapping_type: "string",
+                mapping: multi_field
               }
-            ]
-          }
+            }
+          ]
+        }
+
+        # _all field is deprecated in ES 6.0+
+        if below60
+          default_mapping[:_all] = all_enabled ? {type: default_type, index: index_true, analyzer: default_analyzer} : {enabled: false}
+        end
+
+        mappings = {
+          _default_: default_mapping
         }.deep_merge(options[:mappings] || {})
       end
 
