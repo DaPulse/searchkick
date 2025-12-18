@@ -375,6 +375,8 @@ module Searchkick
         # Remove include_in_all for ES 6.0+ (not allowed)
         unless below60
           mappings = remove_include_in_all(mappings)
+          # ES 6.0+ only allows one type per index - merge all types into _doc
+          mappings = merge_types_for_es6(mappings)
         end
       end
 
@@ -398,6 +400,82 @@ module Searchkick
         obj.map { |item| remove_include_in_all(item) }
       else
         obj
+      end
+    end
+
+    # ES 6.0+ only allows one type per index - merge all types into a single type
+    def merge_types_for_es6(mappings)
+      return mappings if mappings.nil? || mappings.empty?
+
+      # Get all types except _default_
+      types = mappings.keys.reject { |k| k == :_default_ || k == "_default_" }
+
+      # If only one type (or none), just remove _default_ and return
+      if types.size <= 1
+        type_name = types.first || :_doc
+        type_mapping = mappings[type_name] || mappings[:_default_] || mappings["_default_"] || {}
+
+        # Merge _default_ settings into the type
+        default_mapping = mappings[:_default_] || mappings["_default_"] || {}
+        merged = deep_merge_mappings(default_mapping, type_mapping)
+
+        # Remove _all from merged mapping (not allowed in ES 6.0+)
+        merged.delete(:_all)
+        merged.delete("_all")
+
+        return { type_name => merged }
+      end
+
+      # Multiple types - merge all properties into single _doc type
+      merged_properties = {}
+      merged_dynamic_templates = []
+      merged_other = {}
+
+      # First, get _default_ as base
+      default_mapping = mappings[:_default_] || mappings["_default_"] || {}
+      if default_mapping[:properties] || default_mapping["properties"]
+        merged_properties.merge!(default_mapping[:properties] || default_mapping["properties"] || {})
+      end
+      if default_mapping[:dynamic_templates] || default_mapping["dynamic_templates"]
+        merged_dynamic_templates.concat(default_mapping[:dynamic_templates] || default_mapping["dynamic_templates"] || [])
+      end
+
+      # Merge all types
+      types.each do |type_name|
+        type_mapping = mappings[type_name] || {}
+        if type_mapping[:properties] || type_mapping["properties"]
+          merged_properties.merge!(type_mapping[:properties] || type_mapping["properties"] || {})
+        end
+        if type_mapping[:dynamic_templates] || type_mapping["dynamic_templates"]
+          merged_dynamic_templates.concat(type_mapping[:dynamic_templates] || type_mapping["dynamic_templates"] || [])
+        end
+        # Collect other settings (like _routing)
+        (type_mapping.keys - [:properties, "properties", :dynamic_templates, "dynamic_templates", :_all, "_all"]).each do |key|
+          merged_other[key] = type_mapping[key]
+        end
+      end
+
+      result = merged_other.merge({
+        properties: merged_properties
+      })
+      result[:dynamic_templates] = merged_dynamic_templates unless merged_dynamic_templates.empty?
+
+      # Use first type name or _doc
+      { (types.first || :_doc) => result }
+    end
+
+    def deep_merge_mappings(base, overlay)
+      return overlay if base.nil?
+      return base if overlay.nil?
+
+      base.merge(overlay) do |key, old_val, new_val|
+        if old_val.is_a?(Hash) && new_val.is_a?(Hash)
+          deep_merge_mappings(old_val, new_val)
+        elsif old_val.is_a?(Array) && new_val.is_a?(Array)
+          old_val + new_val
+        else
+          new_val
+        end
       end
     end
   end
