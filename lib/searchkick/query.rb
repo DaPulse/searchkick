@@ -964,7 +964,7 @@ module Searchkick
             {bool: {should: [term_filters(field, nil), term_filters(field, value.compact)]}}
           end
         else
-          {in: {field => value}}
+          {terms: {field => value}}
         end
       elsif value.nil?
         if below50?
