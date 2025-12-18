@@ -11,7 +11,10 @@ module Searchkick
       else
         below22 = Searchkick.server_below?("2.2.0")
         below50 = Searchkick.server_below?("5.0.0-alpha1")
+        below60 = Searchkick.server_below?("6.0.0")
         default_type = below50 ? "string" : "text"
+        index_false = below60 ? "no" : false
+        index_true = below60 ? "analyzed" : true
         default_analyzer = below50 ? :default_index : :default
         keyword_mapping =
           if below50
@@ -243,14 +246,14 @@ module Searchkick
           fields = {}
 
           if mapping_options[:only_analyzed].include?(field) || (options.key?(:filterable) && !mapping_options[:filterable].include?(field))
-            fields[field] = {type: default_type, index: "no"}
+            fields[field] = {type: default_type, index: index_false}
           else
             fields[field] = keyword_mapping
           end
 
           if !options[:searchable] || mapping_options[:searchable].include?(field)
             if word
-              fields["analyzed"] = {type: default_type, index: "analyzed", analyzer: default_analyzer}
+              fields["analyzed"] = {type: default_type, index: index_true, analyzer: default_analyzer}
 
               if mapping_options[:highlight].include?(field)
                 fields["analyzed"][:term_vector] = "with_positions_offsets"
@@ -259,7 +262,7 @@ module Searchkick
 
             mapping_options.except(:highlight, :searchable, :filterable, :only_analyzed, :word).each do |type, f|
               if options[:match] == type || f.include?(field)
-                fields[type] = {type: default_type, index: "analyzed", analyzer: "searchkick_#{type}_index"}
+                fields[type] = {type: default_type, index: index_true, analyzer: "searchkick_#{type}_index"}
               end
             end
           end
@@ -289,7 +292,7 @@ module Searchkick
         (options[:unsearchable] || []).map(&:to_s).each do |field|
           mapping[field] = {
             type: default_type,
-            index: "no"
+            index: index_false
           }
         end
 
@@ -310,18 +313,18 @@ module Searchkick
         }
 
         if options.key?(:filterable)
-          dynamic_fields["{name}"] = {type: default_type, index: "no"}
+          dynamic_fields["{name}"] = {type: default_type, index: index_false}
         end
 
         dynamic_fields["{name}"][:ignore_above] = (options[:ignore_above] || 256) unless below22
 
         unless options[:searchable]
           if options[:match] && options[:match] != :word
-            dynamic_fields[options[:match]] = {type: default_type, index: "analyzed", analyzer: "searchkick_#{options[:match]}_index"}
+            dynamic_fields[options[:match]] = {type: default_type, index: index_true, analyzer: "searchkick_#{options[:match]}_index"}
           end
 
           if word
-            dynamic_fields["analyzed"] = {type: default_type, index: "analyzed"}
+            dynamic_fields["analyzed"] = {type: default_type, index: index_true}
           end
         end
 
@@ -341,7 +344,7 @@ module Searchkick
 
         mappings = {
           _default_: {
-            _all: all_enabled ? {type: default_type, index: "analyzed", analyzer: default_analyzer} : {enabled: false},
+            _all: all_enabled ? {type: default_type, index: index_true, analyzer: default_analyzer} : {enabled: false},
             properties: mapping,
             _routing: routing,
             # https://gist.github.com/kimchy/2898285
