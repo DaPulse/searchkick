@@ -531,6 +531,14 @@ module Searchkick
       # merge more body options
       payload = payload.deep_merge(options[:body_options]) if options[:body_options]
 
+      # Apply ES 6.x/OpenSearch query translations
+      payload = translate_query_for_es6(payload)
+
+      # Apply sort field translations for ES 6.x/OpenSearch
+      if payload[:sort]
+        payload[:sort] = translate_sort_for_es6(payload[:sort])
+      end
+
       @body = payload
       @facet_limits ||= {}
       @page = page
@@ -1063,6 +1071,79 @@ module Searchkick
     def below60?
       new_client = options[:new_cluster] == true || use_new_cluster?
       Searchkick.server_below?("6.0.0", new_client)
+    end
+
+    # Query translation for ES 6.x compatibility
+    # Removes deprecated ES 5.x query parameters
+    def translate_query_for_es6(query)
+      return query if below60?
+      deep_transform_query_es6(query)
+    end
+
+    def deep_transform_query_es6(obj)
+      case obj
+      when Hash
+        result = {}
+        obj.each do |key, value|
+          # Key removals (ES 6.x removed these)
+          next if key == :disable_coord || key == "disable_coord"
+
+          # ignore_unmapped should be true for nested paths in ES 6.x
+          if (key == :ignore_unmapped || key == "ignore_unmapped") && value == false
+            result[key] = true
+            next
+          end
+
+          result[key] = deep_transform_query_es6(value)
+        end
+        result
+      when Array
+        obj.map { |item| deep_transform_query_es6(item) }.compact
+      else
+        obj
+      end
+    end
+
+    # Sort field translations for ES 6.x/OpenSearch (when using new_cluster)
+    # These are specific to OpenSearch index structure
+    def translate_sort_for_es6(sort)
+      return sort if below60?
+      return sort unless options[:new_cluster] || use_new_cluster?
+      return sort unless sort.is_a?(Array) || sort.is_a?(Hash)
+
+      sort_replacements = {
+        "id" => "id.long",
+        "board_id" => "board_id.long"
+      }
+
+      if sort.is_a?(Array)
+        sort.map { |s| translate_sort_item(s, sort_replacements) }
+      elsif sort.is_a?(Hash)
+        translate_sort_hash(sort, sort_replacements)
+      else
+        sort
+      end
+    end
+
+    def translate_sort_item(item, replacements)
+      if item.is_a?(Hash)
+        translate_sort_hash(item, replacements)
+      elsif item.is_a?(String) && replacements.key?(item)
+        replacements[item]
+      else
+        item
+      end
+    end
+
+    def translate_sort_hash(hash, replacements)
+      result = {}
+      hash.each do |key, value|
+        key_str = key.to_s
+        new_key = replacements[key_str] || key_str
+        new_key = new_key.to_sym if key.is_a?(Symbol)
+        result[new_key] = value
+      end
+      result
     end
   end
 end
